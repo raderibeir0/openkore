@@ -286,21 +286,27 @@ sub sendToServer {
 		return if ($args{return});
 	}
 
-	# Packet Prefix Encryption Support
-	$self->encryptMessageID(\$msg);
-	my @ignored_ids = ('0C26', '0825', '08B8', '0065', '0066', '09A1', '0B1D', '0A30', '0436');
-	
-	if(!grep { $_ eq $messageID } @ignored_ids){
-		$counter += 1;
-		my $checksum = calc_checksum($counter, $msg);
-		my $checksum_hex = sprintf("%02X", $checksum);  # ← ESTA LINHA
-		$msg = $msg . pack("C", $checksum);
+	unless ($self->{net}->version == 1) {
+		# Packet Prefix Encryption Support
+		$self->encryptMessageID(\$msg);
+		my @ignored_ids = ('0C26', '0825', '08B8', '0065', '0066', '09A1', '0B1D', '0A30');
+		
+		if($messageID eq '0C26' || $messageID eq '0436' ){
+			$counter = 0;    
+		}
+		
+		if(!grep { $_ eq $messageID } @ignored_ids){
+			$counter += 1;
+			my $checksum = calc_checksum($counter, $msg);
+			my $checksum_hex = sprintf("%02X", $checksum);
+			$msg = $msg . pack("C", $checksum);
+		}
+		if ($messageID eq '0436') {
+			my $ping = pack("H*", '1C0B9A');
+			$msg = $ping . $msg;
+		}
 	}
-	if($messageID eq '0C26' || $messageID eq '0436'){
-		$counter = 0;	
-	}
-	
-	$net->serverSend($msg);
+    $net->serverSend($msg);
 	$bytesSent += length($msg);
 
 	if ($config{debugPacket_sent} && !existsInList($config{debugPacket_exclude}, $messageID) && $config{debugPacket_include_dumpMethod} < 3) {
@@ -3595,6 +3601,22 @@ sub sendNPCCreateRequest {
 	my ($self, $name) = @_;
 	$self->sendToServer($self->reconstruct({switch => 'dynamicnpc_create_request', ID => $name}));
 	debug "Sent request to create NPC by name: $name\n", "sendPacket", 2;
+}
+
+# 09D0 CZ_NPROTECTGAMEGUARDCSAUTH
+# Send a GameGuard reply packet to the server
+sub sendGameGuardReply {
+	my ($self, $response) = @_;
+	my $msg;
+	
+	if ($response && length($response) > 0) {
+		$msg = $response;
+	} else {
+		$msg = pack("v", 0x09D0);
+	}
+	
+	$self->sendToServer($msg);
+	debug "Sent GameGuard reply\n", "sendPacket", 2;
 }
 
 1;

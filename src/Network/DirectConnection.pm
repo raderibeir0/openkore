@@ -145,16 +145,40 @@ sub serverConnect {
 	});
 	return if ($return);
 
-	message TF("Connecting (%s:%s)... ", $host, $port), "connection";
+	# Save the host and port
+	my $original_host = $host;
+	my $original_port = $port;
+	# Replace the host and port with the proxy settings, if we are connecting to a map server.
+	my $is_map_server = ($port && $port != $config{ProxyLoginPort} && $port != $config{ProxyCharPort} && $port != $config{ProxyOTPPort});
+	#
+	if ($is_map_server) {
+		$host = $config{ProxyIP} || $host;
+		$port = $config{ProxyPort} || $port;
+	}
+	#
+	message TF("Connecting(%s) (%s:%s)... ", $is_map_server, $host, $port), "connection";
+	#
 	$self->{remote_socket} = new IO::Socket::INET(
-			LocalAddr	=> $config{bindIp} || undef,
-			PeerAddr	=> $host,
-			PeerPort	=> $port,
-			Proto		=> 'tcp',
-			Timeout		=> 4);
-	($self->{remote_socket} && inet_aton($self->{remote_socket}->peerhost()) eq inet_aton($host)) ?
-		message T("connected\n"), "connection" :
+		LocalAddr	=> $config{bindIp} || undef,
+		PeerAddr	=> $host,
+		PeerPort	=> $port,
+		Proto		=> 'tcp',
+		Timeout		=> 4
+	);
+	# If the connection was established.
+	if ($self->{remote_socket} && inet_aton($self->{remote_socket}->peerhost()) eq inet_aton($host)) {
+		message(T("connected\n"), "connection");
+		if ($is_map_server) {
+			# Build packet
+			my $msg = pack("v Z128", 0x99FF, "$original_host:$original_port");
+			# Send packet server
+			$self->serverSend($msg);
+		}
+	} else {
 		error(TF("couldn't connect: %s (error code %d)\n", "$!", int($!)), "connection");
+	}
+
+	# If the connection was not established, then we return.
 	if ($self->getState() != Network::NOT_CONNECTED) {
 		$incomingMessages->nextMessageMightBeAccountID();
 	}
@@ -581,7 +605,7 @@ sub checkConnection {
 	} elsif ($self->getState() == Network::CONNECTED_TO_CHAR_SERVER) {
 		if(!$self->serverAlive() && !$conState_tries) {
 			if ($config{pauseMapServer}) {
-				return if($config{XKore} eq 1 || $config{XKore} eq 3);
+				return if($config{XKore} eq 1 || $config{XKore} eq 4);
 				message "Pausing for $config{pauseMapServer} second(s)...\n", "system";
 				sleep($config{pauseMapServer});
 			}

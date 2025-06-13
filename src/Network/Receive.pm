@@ -6308,7 +6308,29 @@ sub gameguard_grant {
 sub gameguard_request {
 	my ($self, $args) = @_;
 
-	return if (($net->version == 1 && $masterServer->{gameGuard} ne '2') || ($masterServer->{gameGuard} == 0));
+	return if ($masterServer->{gameGuard} == 0);
+
+	if ($net->version == 1) {
+		debug "GameGuard request received in XKore1 mode, sending automatic reply\n", "gameguard";
+		
+		my $requestData = substr($args->{RAW_MSG}, 0, $args->{RAW_MSG_SIZE});
+		my $packetID = unpack("v", substr($requestData, 0, 2));
+		
+		debug sprintf("GameGuard request packet ID: 0x%04X, length: %d\n", $packetID, length($requestData)), "gameguard";
+		
+		if (length($requestData) > 2) {
+			my $replyData = pack("v", 0x09D0) . substr($requestData, 2);
+			$messageSender->sendGameGuardReply($replyData);
+			debug sprintf("Sent GameGuard reply with data, length: %d\n", length($replyData)), "gameguard";
+		} else {
+			$messageSender->sendGameGuardReply();
+			debug "Sent basic GameGuard reply\n", "gameguard";
+		}
+		
+		return;
+	}
+
+	return if ($masterServer->{gameGuard} ne '2');
 	Poseidon::Client::getInstance()->query(
 		substr($args->{RAW_MSG}, 0, $args->{RAW_MSG_SIZE})
 	);
