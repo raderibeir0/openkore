@@ -104,7 +104,7 @@ sub npcTalkPre {
     my ( $self, $args ) = @_;
     my $message = $args->{msg} || '';
 
-    my @tokens = $message =~ /\x1C(.[A-Za-z0-9])\x1C/g;
+	my @tokens = $message =~ /\x1C([A-Za-z0-9]+)\x1C/g;
 
     if (@tokens) {
         my $last_token = $tokens[-1];
@@ -124,7 +124,8 @@ sub npcTalkRespPre {
 	#message Misc::visualDump($raw_msg);
 
     my $translated = $raw_msg;
-    $translated =~ s/\x1C(.[A-Za-z0-9])\x1C/translate_token($1)/ge;
+	$translated =~ s/\x1C([A-Za-z0-9]+)\x1C/translate_token($1)/ge;
+  
     my $new_size = length($translated);
     substr($translated, 2, 2, pack('v', $new_size));
 
