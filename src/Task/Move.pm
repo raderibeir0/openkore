@@ -107,6 +107,7 @@ sub DESTROY {
 sub activate {
 	my ($self) = @_;
 	$self->SUPER::activate();
+	$self->{retry}{time} = time; #It was never defined?
 	$self->{giveup}{time} = time;
 	$self->{start_time} = time;
 }
